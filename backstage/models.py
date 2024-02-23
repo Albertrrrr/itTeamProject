@@ -1,4 +1,5 @@
 from django.db import models
+from eShop.models import CustomUser
 
 # Create your models here.
 class productCategory(models.Model):
@@ -7,4 +8,19 @@ class productCategory(models.Model):
 
     def __str__(self):
         return self.name
+
+
+class Product(models.Model):
+    name = models.CharField(max_length=255)
+    categoryID = models.ForeignKey('productCategory', on_delete=models.SET_NULL, null=True, blank=True)
+    price = models.FloatField(10)
+    stock = models.IntegerField(10)
+    description = models.TextField(null=True)
+    url = models.TextField(null=True)
+
+    def __str__(self):
+        return self.name
+
+class ShoppingCart(models.Model):
+    userID = models.OneToOneField('eShop.CustomUser', on_delete=models.CASCADE)
 

@@ -15,9 +15,17 @@ from django.contrib.auth import get_user_model
 
 class SendVerificationCodeView(APIView):
     def post(self, request):
+        """
+        ### Verification Generator
+        * Method: POST
+        ### Request Body:
+            - email:[user or manager's email]
+        ### Success Response
+            Message: "Verification code has been generated
+        """
         email = request.data.get('email')
         if not email:
-            return Response({"error": "邮箱地址是必需的。"}, status=400)
+            return Response({"error": "E-mail is required."}, status=400)
 
         # 生成四位数的验证码
         code = random.randint(1000, 9999)
@@ -25,10 +33,29 @@ class SendVerificationCodeView(APIView):
         cache.set(f'v_code_{email}', code, timeout=300)
         print("code: ", code)
 
-        return Response({"message": "验证码已生成。"}, status=200)
+        return Response({"message": "Verification code has been generated."}, status=200)
 
 
 class RegisterView(APIView):
+    """
+           ### Register
+           * Method: POST
+           ###  Request Body:
+               - email: [user or manager's email]
+               - password [password]
+               - user_type [user or manager]
+               - username [username]
+               - v_code [manager's code]
+
+           ### Success Response
+               "message": "Registration successful",
+                "user": {
+                    "id": 6,
+                    "email": "Albert.Zhang@gmail.com",
+                    "username": "Albert",
+                    "user_type": "manager"
+                }
+           """
     def post(self, request):
         data = request.data
         email = data.get('email')
@@ -36,7 +63,6 @@ class RegisterView(APIView):
         verification_code = data.get('v_code', None)
         stored_code = cache.get(f'v_code_{email}')
 
-        print(user_type)
         # 如果是管理员类型，验证验证码
         if user_type == 'manager':
             if not verification_code or str(verification_code) != str(stored_code):
@@ -58,6 +84,19 @@ class RegisterView(APIView):
 
 class LoginView(APIView):
     def post(self, request, format=None):
+        """
+        ### Login
+        * Method: POST
+        ###  Request Body:
+            - email: [user or manager's email]
+            - password [password]
+            - user_type [user or manager]
+        ### Success Response
+            "token": "**",
+            "user_type": "manager",
+            "email": "Albert.Zhang@gmail.com",
+            "username": "Albert"
+        """
         email = request.data.get('email')
         password = request.data.get('password')
         user_type = request.data.get('user_type')  # 默认为'user'
