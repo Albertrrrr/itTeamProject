@@ -18,7 +18,7 @@ from django.contrib import admin
 from django.urls import path, include
 from eShop.views import RegisterView, LoginView, SendVerificationCodeView
 from backstage.views import ProductCategoryView, ProductView, ProductDetailView, ShoppingCartView, \
-    ShoppingCartItemByProductDetail, ShoppingCartItemListCreate
+    ShoppingCartItemByProductDetail, ShoppingCartItemListCreate, AddressList, AddressDetail,UserOrderAPIView, UserOrderOneAPIView
 from rest_framework.schemas import get_schema_view
 from rest_framework.documentation import include_docs_urls
 
@@ -40,5 +40,9 @@ urlpatterns = [
          name='shopping-cart-item-list-create'),
     path('api/shopping-cart-items/item/<int:pk>/', ShoppingCartItemByProductDetail.as_view(),
          name='shopping-cart-item-by-product-detail'),
+    path('api/users/<int:user_id>/addresses/', AddressList.as_view(), name='address-list'),
+    path('api/users/<int:user_id>/addresses/<int:pk>/', AddressDetail.as_view(), name='address-detail'),
+    path('api/users/<int:user_id>/orders/', UserOrderAPIView.as_view(), name='user-orders'),
+    path('api/users/<int:user_id>/orders/<int:pk>/', UserOrderOneAPIView.as_view(), name='user-detail'),
 
 ]

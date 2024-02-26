@@ -1,3 +1,4 @@
+from MySQLdb import IntegrityError
 from django.http import Http404, JsonResponse
 from django.shortcuts import render
 from rest_framework.authentication import TokenAuthentication
@@ -6,8 +7,9 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status, pagination
-from .models import productCategory, Product, ShoppingCart, ShoppingCartItem
-from .serializer import ProductCategorySerializer, ProductSerializer, ShoppingCartItemSerializer
+from .models import productCategory, Product, ShoppingCart, ShoppingCartItem, Address, Order
+from .serializers import ProductCategorySerializer, ProductSerializer, ShoppingCartItemSerializer, AddressSerializer, \
+    OrderSerializer, SimpleUserOrderSerializer, SimpleManagerOrderSerializer
 
 
 # Create your views here.
@@ -104,6 +106,7 @@ class ProductCategoryView(APIView):
 class ProductView(APIView):
     authentication_classes = [TokenAuthentication]
     permission_classes = [IsAuthenticated]
+
     def get(self, request, format=None):
         """
         ### Retrieve a list of products. Pagination is applied to this endpoint with a default page size of 10.
@@ -152,6 +155,7 @@ class ProductView(APIView):
             serializer.save()
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
 
 class ProductDetailView(APIView):
     authentication_classes = [TokenAuthentication]
@@ -247,6 +251,7 @@ class ShoppingCartView(APIView):
         Code: 404 Not Found
         Content: If there is no shopping cart corresponding to the specified user ID, a 404 status code will be returned.
     """
+
     def get(self, request, user_id, format=None):
         try:
             shopping_cart = ShoppingCart.objects.get(userID=user_id)
@@ -255,25 +260,35 @@ class ShoppingCartView(APIView):
         except ShoppingCart.DoesNotExist:
             return Response(status=status.HTTP_404_NOT_FOUND)
 
+
 class ShoppingCartItemListCreate(APIView):
     authentication_classes = [TokenAuthentication]
     permission_classes = [IsAuthenticated]
-    def get(self, request, cart_id, format=None):
-        """
-        ### List All Items in a Specific Shopping Cart
-        * Method: GET
-        ### URL Parameters:
-            cart_id: The ID of the specified shopping cart.
-        ### Success Response:
-            Code: 200 OK
-            Content: A list of shopping cart items within the specified cart, including details like id, cartID, productID, and quantity.
-        ### Error Response:
-            Code: 404 Not Found (If the specified shopping cart does not exist)
 
-        """
+    # 缺API文档
+    def get(self, request, cart_id, format=None):
         items = ShoppingCartItem.objects.filter(cartID__id=cart_id)
+        if not items.exists():
+            return Response({"error": "Shopping cart not found."}, status=status.HTTP_404_NOT_FOUND)
+
         serializer = ShoppingCartItemSerializer(items, many=True)
-        return Response(serializer.data)
+
+        total_final_price = 0  # 初始化最终价格的总和
+        items_with_final_price = []
+        for item in serializer.data:
+            final_price = item['quantity'] * item['product_detail']['price']
+            item_with_final_price = item  # 复制原有数据
+            item_with_final_price['final_price'] = final_price
+            items_with_final_price.append(item_with_final_price)
+            total_final_price += final_price  # 累加最终价格到总和中
+
+        # 构建响应数据，包括所有项的详细信息和最终价格的总和
+        response_data = {
+            'items': items_with_final_price,
+            'total_final_price': total_final_price
+        }
+
+        return Response(response_data)
 
     def post(self, request, cart_id, format=None):
         """
@@ -300,12 +315,14 @@ class ShoppingCartItemListCreate(APIView):
                 # 检查库存是否足够
                 requested_quantity = serializer.validated_data.get('quantity')
                 if requested_quantity > product.stock:
-                    return Response({'quantity': f'Requested quantity exceeds available stock of {product.stock}.'}, status=status.HTTP_400_BAD_REQUEST)
+                    return Response({'quantity': f'Requested quantity exceeds available stock of {product.stock}.'},
+                                    status=status.HTTP_400_BAD_REQUEST)
                 serializer.save(cartID=cart, productID=product)
                 return Response({"message": "Add to shopping cart successfully!"}, status=status.HTTP_201_CREATED)
             except (Product.DoesNotExist, ShoppingCart.DoesNotExist):
                 return Response(status=status.HTTP_404_NOT_FOUND)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
 
 class ShoppingCartItemByProductDetail(APIView):
     authentication_classes = [TokenAuthentication]
@@ -367,3 +384,158 @@ class ShoppingCartItemByProductDetail(APIView):
         cart_item.delete()
         return Response({"message": "Delete Successfully"}, status=status.HTTP_204_NO_CONTENT)
 
+
+class AddressList(APIView):
+    authentication_classes = [TokenAuthentication]
+    permission_classes = [IsAuthenticated]
+    """
+    List all addresses for a given user, or create a new address.
+    """
+
+    def get(self, request, user_id):
+        addresses = Address.objects.filter(user_id=user_id)
+        serializer = AddressSerializer(addresses, many=True)
+        return Response(serializer.data)
+
+    def post(self, request, user_id):
+        serializer = AddressSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save(user_id=user_id)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class AddressDetail(APIView):
+    authentication_classes = [TokenAuthentication]
+    permission_classes = [IsAuthenticated]
+    """
+    Retrieve, update, or delete an address instance.
+    """
+
+    def get_object(self, user_id, pk):
+        try:
+            return Address.objects.get(pk=pk, user_id=user_id)
+        except Address.DoesNotExist:
+            raise Http404
+
+    def get(self, request, user_id, pk):
+        address = self.get_object(user_id, pk)
+        serializer = AddressSerializer(address)
+        return Response(serializer.data)
+
+    def put(self, request, user_id, pk):
+        address = self.get_object(user_id, pk)
+        serializer = AddressSerializer(address, data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    def delete(self, request, user_id, pk):
+        address = self.get_object(user_id, pk)
+        address.delete()
+        return Response({'message': "Delete Successfully"}, status=status.HTTP_204_NO_CONTENT)
+
+
+class UserOrderOneAPIView(APIView):
+    authentication_classes = [TokenAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def get_object(self, user_id, pk):
+        try:
+            return Order.objects.get(id=pk, user_id=user_id)
+        except Order.DoesNotExist:
+            raise Http404
+
+    def get(self, request, user_id, pk):
+        order = self.get_object(user_id, pk)
+        serializer = OrderSerializer(order)
+        return Response(serializer.data)
+
+    def put(self, request, user_id, pk):
+        order = self.get_object(user_id, pk)
+        order.status = 'cancel'
+        try:
+            order.save()
+            serializer = OrderSerializer(order)
+            return Response({'message': "Update successfully!", 'order': serializer.data}, status=status.HTTP_200_OK)
+        except IntegrityError:
+            return Response({'message': "Unsuccessfully!"}, status=status.HTTP_400_BAD_REQUEST)
+
+    def post(self, request, user_id, pk):
+        order = self.get_object(user_id, pk)
+        if order.status == 'delivered':
+            order.status = 'done'
+            try:
+                order.save()
+                serializer = OrderSerializer(order)
+                return Response({'message': "Your order have been done! Thanks! ", 'order': serializer.data},
+                                status=status.HTTP_200_OK)
+            except IntegrityError:
+                return Response({'message': "Unsuccessfully!"}, status=status.HTTP_400_BAD_REQUEST)
+        else:
+            return Response({'message': "Unsuccessfully!"}, status=status.HTTP_400_BAD_REQUEST)
+
+
+class UserOrderAPIView(APIView):
+    """
+    List all orders for a given user, or create a new order for the user.
+    """
+    authentication_classes = [TokenAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, user_id):
+        orders = Order.objects.filter(user_id=user_id).order_by('id')
+        paginator = pagination.PageNumberPagination()
+        result_page = paginator.paginate_queryset(orders, request)
+        serializer = SimpleUserOrderSerializer(result_page, many=True)
+        return paginator.get_paginated_response(serializer.data)
+
+
+    def post(self, request, user_id):
+        try:
+            # 假设每个用户只有一个购物车
+            cart = ShoppingCart.objects.get(userID_id=user_id)
+        except ShoppingCart.DoesNotExist:
+            return Response({"error": "Shopping cart not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        address_id = request.data.get('address_id')
+        try:
+            # 根据地址ID获取地址实例
+            address = Address.objects.get(pk=address_id, user_id=user_id)
+        except Address.DoesNotExist:
+            return Response({"error": "Address not found."}, status=status.HTTP_404_NOT_FOUND)
+
+            # 序列化地址信息
+        address_serializer = AddressSerializer(address)
+
+        items = ShoppingCartItem.objects.filter(cartID_id=cart)
+        if not items.exists():
+            return Response({"error": "Shopping cart is empty."}, status=status.HTTP_400_BAD_REQUEST)
+
+        serializer = ShoppingCartItemSerializer(items, many=True)
+
+        total_final_price = 0  # 初始化最终价格的总和
+        items_with_final_price = []
+        for item in serializer.data:
+            final_price = item['quantity'] * item['product_detail']['price']
+            item_with_final_price = item  # 复制原有数据
+            item_with_final_price['final_price'] = final_price
+            items_with_final_price.append(item_with_final_price)
+            total_final_price += final_price  # 累加最终价格到总和中
+
+        order_data = {
+            'user': user_id,
+            'item': items_with_final_price,  # 确保这里符合OrderSerializer的期望格式
+            'totalCost': total_final_price,
+            'address': address_serializer.data
+        }
+
+        order_serializer = OrderSerializer(data=order_data)
+        if order_serializer.is_valid():
+            order_serializer.save()
+            # 清空购物车中的记录
+            items.delete()
+            return Response(order_serializer.data, status=status.HTTP_201_CREATED)
+        else:
+            return Response(order_serializer.errors, status=status.HTTP_400_BAD_REQUEST)
