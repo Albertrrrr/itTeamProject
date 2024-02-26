@@ -1,12 +1,13 @@
 from django.http import Http404, JsonResponse
 from django.shortcuts import render
 from rest_framework.authentication import TokenAuthentication
+from rest_framework.generics import get_object_or_404
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status, pagination
-from .models import productCategory, Product, ShoppingCart
-from .serializer import ProductCategorySerializer, ProductSerializer
+from .models import productCategory, Product, ShoppingCart, ShoppingCartItem
+from .serializer import ProductCategorySerializer, ProductSerializer, ShoppingCartItemSerializer
 
 
 # Create your views here.
@@ -229,6 +230,8 @@ class ProductDetailView(APIView):
 
 
 class ShoppingCartView(APIView):
+    authentication_classes = [TokenAuthentication]
+    permission_classes = [IsAuthenticated]
     """
     ### Retrieve a ShoppingCart ID by CustomUser ID.
     * Request Type: GET
@@ -251,3 +254,116 @@ class ShoppingCartView(APIView):
             return JsonResponse({'shoppingCartID': shopping_cart.id})
         except ShoppingCart.DoesNotExist:
             return Response(status=status.HTTP_404_NOT_FOUND)
+
+class ShoppingCartItemListCreate(APIView):
+    authentication_classes = [TokenAuthentication]
+    permission_classes = [IsAuthenticated]
+    def get(self, request, cart_id, format=None):
+        """
+        ### List All Items in a Specific Shopping Cart
+        * Method: GET
+        ### URL Parameters:
+            cart_id: The ID of the specified shopping cart.
+        ### Success Response:
+            Code: 200 OK
+            Content: A list of shopping cart items within the specified cart, including details like id, cartID, productID, and quantity.
+        ### Error Response:
+            Code: 404 Not Found (If the specified shopping cart does not exist)
+
+        """
+        items = ShoppingCartItem.objects.filter(cartID__id=cart_id)
+        serializer = ShoppingCartItemSerializer(items, many=True)
+        return Response(serializer.data)
+
+    def post(self, request, cart_id, format=None):
+        """
+        ### Add an Item to a Specific Shopping Cart
+        * Method: POST
+        ### URL Parameters:
+            cart_id: The ID of the specified shopping cart.
+        ### Data Parameters (Request Body):
+            productID: The ID of the product to be added to the cart.
+            quantity: The quantity of the product to be added.
+        ### Success Response:
+            Code: 201 Created
+            Content: Details of the newly added shopping cart item, including id, cartID, productID, and quantity.
+        ### Error Response:
+            Code: 400 Bad Request (If the provided data is invalid, such as exceeding available stock)
+            Code: 404 Not Found (If the specified shopping cart or product does not exist)
+        """
+        serializer = ShoppingCartItemSerializer(data=request.data)
+        if serializer.is_valid():
+            try:
+                cart = ShoppingCart.objects.get(id=cart_id)
+                product_id = request.data.get('productID')
+                product = Product.objects.get(id=product_id)
+                # 检查库存是否足够
+                requested_quantity = serializer.validated_data.get('quantity')
+                if requested_quantity > product.stock:
+                    return Response({'quantity': f'Requested quantity exceeds available stock of {product.stock}.'}, status=status.HTTP_400_BAD_REQUEST)
+                serializer.save(cartID=cart, productID=product)
+                return Response({"message": "Add to shopping cart successfully!"}, status=status.HTTP_201_CREATED)
+            except (Product.DoesNotExist, ShoppingCart.DoesNotExist):
+                return Response(status=status.HTTP_404_NOT_FOUND)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+class ShoppingCartItemByProductDetail(APIView):
+    authentication_classes = [TokenAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, pk, format=None):
+        """
+        ### Retrieve a Specific Shopping Cart Item
+        Method: GET
+        URL Parameters:
+        pk: The primary key ID of the shopping cart item. This ID is used internally and is not directly visible to the user.
+        Success Response:
+        Code: 200 OK
+        Content: Returns only the quantity of the specific shopping cart item, e.g., {"quantity": 3}.
+        Error Response:
+        Code: 404 Not Found (If the specified shopping cart item does not exist).
+        """
+        cart_item = get_object_or_404(ShoppingCartItem, pk=pk)
+        # Return only the quantity of the shopping cart item
+        return Response({'quantity': cart_item.quantity})
+
+    def put(self, request, pk, format=None):
+        """
+        ### Update the Quantity of a Specific Shopping Cart Item
+        * Method: PUT
+        ### URL Parameters:
+            pk: The primary key ID of the shopping cart item. This ID is intended for internal use and should not be exposed to the user.
+        ### Data Parameters (Request Body):
+            quantity: The new quantity for the shopping cart item. This is the only attribute that users are allowed to modify.
+        ### Success Response:
+            Code: 200 OK Update successfully
+        ### Error Response:
+            Code: 400 Bad Request (If the quantity is not provided in the request body).
+            Code: 404 Not Found (If the specified shopping cart item does not exist).
+        """
+        cart_item = get_object_or_404(ShoppingCartItem, pk=pk)
+        # Only allow updating the quantity
+        quantity = request.data.get('quantity')
+        if quantity is not None:
+            cart_item.quantity = quantity
+            cart_item.save()
+            return Response({'message': "Update successfully!"}, status=status.HTTP_200_OK)
+        else:
+            return Response({'error': 'Quantity is required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    def delete(self, request, pk, format=None):
+        """
+        ### Delete a Specific Shopping Cart Item
+        * Method: DELETE
+        ### URL Parameters:
+            pk: The primary key ID of the shopping cart item. This parameter is used for internal tracking and is not visible to the user.
+        ### Success Response:
+            Code: 204 {"message": "Delete Successfully"}
+        ### Error Response:
+            Code: 404 Not Found (If the specified shopping cart item does not exist).
+
+        """
+        cart_item = get_object_or_404(ShoppingCartItem, pk=pk)
+        cart_item.delete()
+        return Response({"message": "Delete Successfully"}, status=status.HTTP_204_NO_CONTENT)
+

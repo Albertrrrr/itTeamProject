@@ -17,7 +17,8 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import path, include
 from eShop.views import RegisterView, LoginView, SendVerificationCodeView
-from backstage.views import ProductCategoryView, ProductView, ProductDetailView, ShoppingCartView
+from backstage.views import ProductCategoryView, ProductView, ProductDetailView, ShoppingCartView, \
+    ShoppingCartItemByProductDetail, ShoppingCartItemListCreate
 from rest_framework.schemas import get_schema_view
 from rest_framework.documentation import include_docs_urls
 
@@ -35,5 +36,9 @@ urlpatterns = [
     path('schema/', schema_view),
     path('docs/', include_docs_urls(title='API Documentation')),
     path('api/shopping-cart/<int:user_id>/', ShoppingCartView.as_view(), name='shopping-cart-detail'),
+    path('api/shopping-cart-items/cart/<int:cart_id>/', ShoppingCartItemListCreate.as_view(),
+         name='shopping-cart-item-list-create'),
+    path('api/shopping-cart-items/item/<int:pk>/', ShoppingCartItemByProductDetail.as_view(),
+         name='shopping-cart-item-by-product-detail'),
 
 ]
