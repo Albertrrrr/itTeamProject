@@ -1,6 +1,6 @@
 from MySQLdb import IntegrityError
+from alipay import AliPay, AliPayConfig
 from django.http import Http404, JsonResponse
-from django.shortcuts import render
 from rest_framework.authentication import TokenAuthentication
 from rest_framework.generics import get_object_or_404
 from rest_framework.permissions import IsAuthenticated
@@ -9,7 +9,8 @@ from rest_framework.response import Response
 from rest_framework import status, pagination
 from .models import productCategory, Product, ShoppingCart, ShoppingCartItem, Address, Order
 from .serializers import ProductCategorySerializer, ProductSerializer, ShoppingCartItemSerializer, AddressSerializer, \
-    OrderSerializer, SimpleUserOrderSerializer, SimpleManagerOrderSerializer
+    OrderSerializer, SimpleUserOrderSerializer
+from backstage.tasks import query_order_status
 
 
 # Create your views here.
@@ -491,7 +492,6 @@ class UserOrderAPIView(APIView):
         serializer = SimpleUserOrderSerializer(result_page, many=True)
         return paginator.get_paginated_response(serializer.data)
 
-
     def post(self, request, user_id):
         try:
             # 假设每个用户只有一个购物车
@@ -539,3 +539,42 @@ class UserOrderAPIView(APIView):
             return Response(order_serializer.data, status=status.HTTP_201_CREATED)
         else:
             return Response(order_serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class AliPayAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, user_id, pk):
+        app_private_key_string = open("backstage/Privatekey.txt").read()
+        alipay_public_key_string = open("backstage/alipayPublicCert.txt").read()
+
+        alipay = AliPay(
+            appid="9021000129661967",
+            app_notify_url=None,  # 不接收异步通知
+            app_private_key_string=app_private_key_string,
+            alipay_public_key_string=alipay_public_key_string,
+            sign_type="RSA2",
+            debug=True,  # 默认False，True表示沙箱环境
+            config=AliPayConfig(timeout=15)
+        )
+
+        order = Order.objects.get(id=pk, user_id=user_id)
+
+        rounded_number = round(order.totalCost, 2)
+        # 生成支付的url
+        order_string = alipay.api_alipay_trade_page_pay(
+            out_trade_no=order.id,
+            total_amount=str(rounded_number),  # 将Decimal转换为字符串传递
+            subject="P",
+            return_url=None,  # 不关心用户支付完成后的页面跳转
+            notify_url=None  # 可选, 不填则不会发送异步通知
+        )
+
+        # 沙箱环境下，用沙箱的网关
+        pay_url = f"https://openapi-sandbox.dl.alipaydev.com/gateway.do?{order_string}"
+
+        query_order_status.delay(order.id)
+        # print(add.delay(10,5))
+
+        # 直接返回支付链接给前端，而不进行页面跳转
+        return Response({"pay_url": pay_url})

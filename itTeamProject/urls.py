@@ -18,7 +18,7 @@ from django.contrib import admin
 from django.urls import path, include
 from eShop.views import RegisterView, LoginView, SendVerificationCodeView
 from backstage.views import ProductCategoryView, ProductView, ProductDetailView, ShoppingCartView, \
-    ShoppingCartItemByProductDetail, ShoppingCartItemListCreate, AddressList, AddressDetail,UserOrderAPIView, UserOrderOneAPIView
+    ShoppingCartItemByProductDetail, ShoppingCartItemListCreate, AddressList, AddressDetail,UserOrderAPIView, UserOrderOneAPIView, AliPayAPIView
 from rest_framework.schemas import get_schema_view
 from rest_framework.documentation import include_docs_urls
 
@@ -44,5 +44,5 @@ urlpatterns = [
     path('api/users/<int:user_id>/addresses/<int:pk>/', AddressDetail.as_view(), name='address-detail'),
     path('api/users/<int:user_id>/orders/', UserOrderAPIView.as_view(), name='user-orders'),
     path('api/users/<int:user_id>/orders/<int:pk>/', UserOrderOneAPIView.as_view(), name='user-detail'),
-
+    path('api/alipay/<int:user_id>/<int:pk>/', AliPayAPIView.as_view(), name='alipay'),
 ]
