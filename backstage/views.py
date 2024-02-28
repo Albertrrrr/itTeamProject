@@ -1,5 +1,8 @@
+import datetime
+
 from MySQLdb import IntegrityError
 from alipay import AliPay, AliPayConfig
+from django.db.models import Q
 from django.http import Http404, JsonResponse
 from rest_framework.authentication import TokenAuthentication
 from rest_framework.generics import get_object_or_404
@@ -9,7 +12,7 @@ from rest_framework.response import Response
 from rest_framework import status, pagination
 from .models import productCategory, Product, ShoppingCart, ShoppingCartItem, Address, Order
 from .serializers import ProductCategorySerializer, ProductSerializer, ShoppingCartItemSerializer, AddressSerializer, \
-    OrderSerializer, SimpleUserOrderSerializer
+    OrderSerializer, SimpleUserOrderSerializer, SimpleManagerOrderSerializer
 from backstage.tasks import query_order_status
 
 
@@ -25,6 +28,9 @@ class ProductCategoryView(APIView):
         ### Success Response:
             Code: 200 OK
             Content: List of categories
+        ### Instance:
+            Token
+            127.0.0.1:8000/api/categories/
         """
         if pk:
             try:
@@ -47,6 +53,11 @@ class ProductCategoryView(APIView):
         ### Request Body
              - "name": "[name of the category]",
              - "description": "[description of the category]"
+        ### Instance:
+            {
+                "name":"Faimly Kit",
+                "description": "Kit"
+            }
 
         ### Success Response:
             Code: 201 CREATED
@@ -70,6 +81,12 @@ class ProductCategoryView(APIView):
           - "name": "[new name of the category]",
           - "description": "[new description of the category]"
 
+        ### Instance:
+            {
+                "name": "Vegetarian",
+                "description": "Update Kit"
+            }
+
         ### Success Response:
             Code: 200 OK
             Content: { "id": 12, "name": "New Category Name", "description": "New Category Description" }
@@ -92,6 +109,8 @@ class ProductCategoryView(APIView):
         * Auth required: Yes
         * Permissions required: Admin
         * URL Parameters: id=[integer]
+        ### Instance:
+            127.0.0.1:8000/api/categories/6/
         ### Success Response:
             - Code: 204 Delete Successfully
             - Content: None
@@ -111,11 +130,11 @@ class ProductView(APIView):
     def get(self, request, format=None):
         """
         ### Retrieve a list of products. Pagination is applied to this endpoint with a default page size of 10.
-               Parameters:
-               page: A number of the page you want to retrieve (query parameter).
-               Responses:
-                - 200 OK: Returns a list of products with pagination details.
-                - 401 Unauthorized: If the user is not authenticated.
+        ### Instance:
+            127.0.0.1:8000/api/products/
+        ###  Responses:
+            - 200 OK: Returns a list of products with pagination details.
+            - 401 Unauthorized: If the user is not authenticated.
         """
         products = Product.objects.all()
         paginator = pagination.PageNumberPagination()
@@ -137,6 +156,16 @@ class ProductView(APIView):
              stock: [stock quantity of the product]
              description: [description of the product]
              URL: [URL of the product image or website]
+
+        ### Instance:
+            {
+                "name":"TestProducts2",
+                "categoryID":"4",
+                "price":"1.83",
+                "stock":"100",
+                "description":"key",
+                "URL":"https://.git"
+            }
 
         ### Success Response:
         - Code: 201 CREATED
@@ -178,11 +207,15 @@ class ProductDetailView(APIView):
         ### URL Parameters:
             - id: The unique id of the product to retrieve.
 
+        ### Instance:
+            127.0.0.1:8000/api/products/1/
+
         ### Success Response:
             Code: 200 OK
             Content: { "id": 12, "name": "Product Name", "categoryID": 3, "price": 19.99, "stock": 100, "description": "Product Description", "URL": "http://example.com/product" }
 
         """
+
         product = self.get_object(id)
         serializer = ProductSerializer(product)
         return Response(serializer.data)
@@ -204,7 +237,16 @@ class ProductDetailView(APIView):
             - stock: [new stock quantity of the product]
             - description: [new description of the product]
             - URL: [new URL of the product image or website]
-
+        ### Instance:
+            127.0.0.1:8000/api/products/1/
+             {
+                 "name":"TestName",
+                "categoryID":"3",
+                "price":"2.38",
+                "stock":"100",
+                "description":"key",
+                "url":"https://mm.com.fig"
+             }
         ### Success Response:
             Code: 200 OK
             Content: { "id": 12, "name": "Updated Product Name", "categoryID": 3, "price": 25.99, "stock": 150, "description": "Updated Product Description", "URL": "http://example.com/updated_product" }
@@ -226,6 +268,9 @@ class ProductDetailView(APIView):
         ### URL Parameters:
             - id: The unique id of the product to delete.
 
+        ### Instance:
+            127.0.0.1:8000/api/products/1/
+
         ### Success Response:
             Code: 204 Message: Delete Successfully
         """
@@ -234,26 +279,71 @@ class ProductDetailView(APIView):
         return Response({"message": "Delete Successfully"}, status=status.HTTP_204_NO_CONTENT)
 
 
+class ProductSearchAPIView(APIView):
+    authentication_classes = [TokenAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, *args, **kwargs):
+        """
+            ### URL:
+                POST /api/search/products/
+            ### Description :This endpoint allows authenticated users to search for products by name, ignoring case sensitivity. It returns a paginated list of products that contain the specified query in their name.
+
+            ### Authentication
+                Required. Token-based authentication is used to secure access to this endpoint. Users must provide a valid authentication token in the header of their request.
+                Permissions
+                Required. Users must be authenticated to access this endpoint.
+            ### Request Parameters
+            ### Body Parameters:
+                name (string): The name or partial name of the product to search for. This parameter is case-insensitive.
+            ### Responses
+                200 OK: The request was successful, and the response contains a paginated list of products matching the search criteria.
+                The response includes fields such as id, name, categoryID, price, stock, description, and url for each product, depending on the fields defined in the ProductSerializer.
+                400 Bad Request: The request failed due to missing or invalid parameters. A message explaining the reason for the failure is included in the response body.
+                Example: {"message": "Name parameter is missing."}
+
+            ### Instance:
+                Content-Type: application/json
+                Authorization: Token YOUR_AUTH_TOKEN_HERE
+                127.0.0.1:8000/api/search/products/
+                {
+                    "name":"2"
+                }
+            """
+        name_query = request.data.get('name', None)
+        if name_query is not None:
+            # 使用icontains进行不区分大小写的搜索
+            products = Product.objects.filter(name__icontains=name_query)
+            paginator = pagination.PageNumberPagination()
+            result_page = paginator.paginate_queryset(products, request)
+            serializer = ProductSerializer(result_page, many=True)
+            return paginator.get_paginated_response(serializer.data)
+        else:
+            return Response({"message": "Name parameter is missing."}, status=status.HTTP_400_BAD_REQUEST)
+
+
 class ShoppingCartView(APIView):
     authentication_classes = [TokenAuthentication]
     permission_classes = [IsAuthenticated]
-    """
-    ### Retrieve a ShoppingCart ID by CustomUser ID.
-    * Request Type: GET
-    ### Parameters:
-        user_id (URL path parameter): The unique identifier of the user (must be an integer).
-    ### Success Response:
-        Code: 200 OK
-    ### Content Example:
-        {
-          "shoppingCartID": 12
-        }
-   ###  Error Response:
-        Code: 404 Not Found
-        Content: If there is no shopping cart corresponding to the specified user ID, a 404 status code will be returned.
-    """
 
     def get(self, request, user_id, format=None):
+        """
+            ### Retrieve a ShoppingCart ID by CustomUser ID.
+            * Request Type: GET
+            ### Parameters:
+                user_id (URL path parameter): The unique identifier of the user (must be an integer).
+            ### Instance:
+                127.0.0.1:8000/api/shopping-cart/10/
+            ### Success Response:
+                Code: 200 OK
+            ### Content Example:
+                {
+                  "shoppingCartID": 12
+                }
+           ###  Error Response:
+                Code: 404 Not Found
+                Content: If there is no shopping cart corresponding to the specified user ID, a 404 status code will be returned.
+            """
         try:
             shopping_cart = ShoppingCart.objects.get(userID=user_id)
             # 直接返回购物车ID
@@ -268,6 +358,23 @@ class ShoppingCartItemListCreate(APIView):
 
     # 缺API文档
     def get(self, request, cart_id, format=None):
+        """
+        ### Description:
+            This endpoint retrieves all items within a specified shopping cart, including the final price for each item based on its quantity and the individual product price. It also calculates and returns the total final price of all items in the cart. The endpoint is designed to provide detailed information about the shopping cart contents for review or checkout purposes.
+        ### Parameters:
+            Path Parameters:
+            cart_id (integer): The unique identifier of the shopping cart whose items are to be retrieved.
+        ### Instance:
+            127.0.0.1:8000/api/shopping-cart-items/cart/1/
+        ### Responses
+            200 OK: Successfully retrieved the shopping cart items along with their final prices.
+            The response body includes an array of items, each with product details and a calculated final_price, as well as the total_final_price for the entire cart.
+            404 Not Found: The specified shopping cart does not exist or contains no items. An error message is included in the response body.
+        ### Example:
+            {"error": "Shopping cart not found."}
+
+
+        """
         items = ShoppingCartItem.objects.filter(cartID__id=cart_id)
         if not items.exists():
             return Response({"error": "Shopping cart not found."}, status=status.HTTP_404_NOT_FOUND)
@@ -300,6 +407,13 @@ class ShoppingCartItemListCreate(APIView):
         ### Data Parameters (Request Body):
             productID: The ID of the product to be added to the cart.
             quantity: The quantity of the product to be added.
+        ### Instance:
+            127.0.0.1:8000/api/shopping-cart-items/cart/1/
+            {
+                "cartID":"1",
+                "productID":"4",
+                "quantity":"30"
+            }
         ### Success Response:
             Code: 201 Created
             Content: Details of the newly added shopping cart item, including id, cartID, productID, and quantity.
@@ -335,6 +449,8 @@ class ShoppingCartItemByProductDetail(APIView):
         Method: GET
         URL Parameters:
         pk: The primary key ID of the shopping cart item. This ID is used internally and is not directly visible to the user.
+        ### Instance:
+            127.0.0.1:8000/api/shopping-cart-items/item/30/
         Success Response:
         Code: 200 OK
         Content: Returns only the quantity of the specific shopping cart item, e.g., {"quantity": 3}.
@@ -353,10 +469,13 @@ class ShoppingCartItemByProductDetail(APIView):
             pk: The primary key ID of the shopping cart item. This ID is intended for internal use and should not be exposed to the user.
         ### Data Parameters (Request Body):
             quantity: The new quantity for the shopping cart item. This is the only attribute that users are allowed to modify.
+        ### Instance:
+            127.0.0.1:8000/api/shopping-cart-items/item/30/
+            {"quantity":60}
         ### Success Response:
             Code: 200 OK Update successfully
         ### Error Response:
-            Code: 400 Bad Request (If the quantity is not provided in the request body).
+            Code: 400 Bad Request (If the quantity is not provided in the request body). or "The quantity exceeds the available stock."
             Code: 404 Not Found (If the specified shopping cart item does not exist).
         """
         cart_item = get_object_or_404(ShoppingCartItem, pk=pk)
@@ -375,6 +494,8 @@ class ShoppingCartItemByProductDetail(APIView):
         * Method: DELETE
         ### URL Parameters:
             pk: The primary key ID of the shopping cart item. This parameter is used for internal tracking and is not visible to the user.
+        ### Instance:
+            127.0.0.1:8000/api/shopping-cart-items/item/30/
         ### Success Response:
             Code: 204 {"message": "Delete Successfully"}
         ### Error Response:
@@ -394,11 +515,47 @@ class AddressList(APIView):
     """
 
     def get(self, request, user_id):
+        """
+        ### Description:
+            Retrieves a list of all addresses associated with the specified user.
+        ### Parameters:
+            Path Parameters:
+            user_id (integer): The unique identifier of the user whose addresses are to be retrieved.
+        ### Instance:
+            127.0.0.1:8000/api/users/10/addresses/
+        ### Responses:
+            200 OK: Successfully retrieved a list of addresses. The response body includes an array of address records for the specified user.
+            404 Not Found: The specified user does not exist or has no addresses. An appropriate error message is included in the response body.
+
+        """
         addresses = Address.objects.filter(user_id=user_id)
         serializer = AddressSerializer(addresses, many=True)
         return Response(serializer.data)
 
     def post(self, request, user_id):
+        """
+        ### Description:
+            Creates a new address for the specified user.
+        ### Parameters:
+            Path Parameters:
+            user_id (integer): The unique identifier of the user for whom the address is being created.
+        ### Body Parameters:
+            Required. The address details to be created (user, house_number_and_street, area, town, county, postcode).
+        ### Instance:
+            URL: 127.0.0.1:8000/api/users/10/addresses/
+            {
+                "user":"10",
+                "house_number_and_street":"Flat 28, 1 Beith Street ",
+                "area" : "",
+                "town" : "Glasgow",
+                "county": "",
+                "postcode":"G115PS"
+
+            }
+        ### Responses
+            201 Created: The address was successfully created. The response body includes the details of the newly created address.
+            400 Bad Request: The request failed due to invalid input. An error message detailing the validation errors is included in the response body.
+        """
         serializer = AddressSerializer(data=request.data)
         if serializer.is_valid():
             serializer.save(user_id=user_id)
@@ -420,11 +577,47 @@ class AddressDetail(APIView):
             raise Http404
 
     def get(self, request, user_id, pk):
+        """
+        ### Description:
+            Retrieves the details of a specific address for the specified user.
+        ### Parameters:
+            Path Parameters:
+            user_id (integer): The unique identifier of the user.
+            pk (integer): The primary key of the address to retrieve.
+        ### Instance:
+            127.0.0.1:8000/api/users/10/addresses/1
+        ### Responses:
+            200 OK: Successfully retrieved the address. The response body includes the details of the requested address.
+            404 Not Found: The specified address does not exist. An appropriate error message is included in the response body.
+        """
         address = self.get_object(user_id, pk)
         serializer = AddressSerializer(address)
         return Response(serializer.data)
 
     def put(self, request, user_id, pk):
+        """
+        ### Description:
+            Updates the specified address for the given user.
+        ### Parameters:
+            Path Parameters:
+            user_id (integer): The unique identifier of the user.
+            pk (integer): The primary key of the address to update.
+        ### Body Parameters:
+            Required. The updated address details  (user, house_number_and_street, area, town, county, postcode).
+        ### Instance:
+            127.0.0.1:8000/api/users/10/addresses/1/
+            {
+                "user":"10",
+                "house_number_and_street":"Flat 28, 1 Beith Street ",
+                "area" : "",
+                "town" : "Glasgow",
+                "county": "",
+                "postcode":"G115PS"
+            }
+        ### Responses:
+            200 OK: The address was successfully updated. The response body includes the details of the updated address.
+            400 Bad Request: The request failed due to invalid input. An error message detailing the validation errors is included in the response body.
+        """
         address = self.get_object(user_id, pk)
         serializer = AddressSerializer(address, data=request.data)
         if serializer.is_valid():
@@ -433,6 +626,19 @@ class AddressDetail(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     def delete(self, request, user_id, pk):
+        """
+        ### Description:
+            Deletes the specified address for the given user.
+        ### Parameters:
+            Path Parameters:
+            user_id (integer): The unique identifier of the user.
+            pk (integer): The primary key of the address to delete.
+        ### Instance:
+            127.0.0.1:8000/api/users/10/addresses/1/
+        ### Responses:
+            204 No Content: The address was successfully deleted. A message confirming the deletion is included in the response body.
+            404 Not Found: The specified address does not exist. An appropriate error message is included in the response body.
+        """
         address = self.get_object(user_id, pk)
         address.delete()
         return Response({'message': "Delete Successfully"}, status=status.HTTP_204_NO_CONTENT)
@@ -449,11 +655,37 @@ class UserOrderOneAPIView(APIView):
             raise Http404
 
     def get(self, request, user_id, pk):
+        """
+        ### Description:
+            Retrieves the details of a specific order for the specified user.
+        ### Parameters:
+            Path Parameters:
+            user_id (integer): The unique identifier of the user.
+            pk (integer): The primary key of the order to retrieve.
+        ### Instance:
+            127.0.0.1:8000/api/users/10/orders/1/
+        ### Responses:
+            200 OK: Successfully retrieved the order. The response body includes the details of the requested order.
+            404 Not Found: The specified order does not exist. An appropriate error message is included in the response body.
+        """
         order = self.get_object(user_id, pk)
         serializer = OrderSerializer(order)
         return Response(serializer.data)
 
     def put(self, request, user_id, pk):
+        """
+        ### Description:
+            Updates the status of the specified order to 'cancel'.
+        ### Parameters:
+            Path Parameters:
+            user_id (integer): The unique identifier of the user.
+            pk (integer): The primary key of the order to update.
+        ### Instance:
+            127.0.0.1:8000/api/users/10/orders/1/
+        ### Responses:
+            200 OK: The order was successfully updated to 'cancel'. The response body includes a success message and the updated order details.
+            400 Bad Request: The request failed. An error message is included in the response body.
+        """
         order = self.get_object(user_id, pk)
         order.status = 'cancel'
         try:
@@ -464,9 +696,24 @@ class UserOrderOneAPIView(APIView):
             return Response({'message': "Unsuccessfully!"}, status=status.HTTP_400_BAD_REQUEST)
 
     def post(self, request, user_id, pk):
+        """
+        ### Description:
+            Marks the specified order as completed if its status is 'delivered'. It also updates the order's finish time to the current date and time.
+        ### Parameters:
+            Path Parameters:
+            user_id (integer): The unique identifier of the user.
+            pk (integer): The primary key of the order to mark as completed.
+        ### Instance:
+            URL: 127.0.0.1:8000/api/users/10/orders/14/
+        ### Responses:
+            200 OK: The order was successfully marked as completed. The response body includes a success message, and the updated order details.
+            400 Bad Request: The request failed due to the order not being in a 'delivered' status or other issues. An error message is included in the response body.
+        """
         order = self.get_object(user_id, pk)
         if order.status == 'delivered':
             order.status = 'done'
+            now = datetime.datetime.now()
+            order.finishTime = now
             try:
                 order.save()
                 serializer = OrderSerializer(order)
@@ -478,6 +725,105 @@ class UserOrderOneAPIView(APIView):
             return Response({'message': "Unsuccessfully!"}, status=status.HTTP_400_BAD_REQUEST)
 
 
+class ManagerOrderOneAPIView(APIView):
+    authentication_classes = [TokenAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        """
+        ### Description:
+            Retrieves a paginated list of all orders sorted by their ID.
+        ### Instance:
+            URL:127.0.0.1:8000/api/manager/orders/
+        ### Responses:
+            200 OK: Successfully retrieved a list of orders. The response is paginated and includes order details based on the SimpleManagerOrderSerializer.
+        """
+        orders = Order.objects.all().order_by('id')
+        paginator = pagination.PageNumberPagination()
+        result_page = paginator.paginate_queryset(orders, request)
+        serializer = SimpleManagerOrderSerializer(result_page, many=True)
+        return paginator.get_paginated_response(serializer.data)
+
+    def put(self, request):
+        """
+        ### Description:
+            Updates the status of a specified order to 'delivered', provided the order has been paid.
+        ### Request Body:
+            id (integer): The unique identifier of the order to update.
+        ### Instance:
+            URL:127.0.0.1:8000/api/manager/orders/
+            {"id":"14"}
+        ### Responses:
+            200 OK: Successfully updated the order status to 'delivered'. The response includes a success message and the updated order details.
+            400 Bad Request: The request failed due to the order not being paid or other issues. An error message is included in the response body.
+        """
+        pk = request.data.get('id')
+        order = Order.objects.get(id=pk)
+        if order.isPaid:
+            order.status = 'delivered'
+            try:
+                order.save()
+                serializer = OrderSerializer(order)
+                return Response({'message': "Update successfully!", 'order': serializer.data},
+                                status=status.HTTP_200_OK)
+            except IntegrityError:
+                return Response({'message': "Unsuccessfully!"}, status=status.HTTP_400_BAD_REQUEST)
+        else:
+            return Response({'message': "Customer need to finish the payment !"}, status=status.HTTP_400_BAD_REQUEST)
+
+    def post(self, request, *args, **kwargs):
+        """
+        ### Description:
+            Allows for filtering orders based on user ID, a list of statuses, and a creation date range. It returns a paginated list of orders that match the specified criteria.
+        ### Request Body:
+            user_id (integer, optional): The unique identifier of the user whose orders to filter.
+            statuses (list of strings, optional): A list of order statuses to filter by.
+            start_date (string, optional): The start date for filtering orders by creation date, in YYYY-MM-DD format.
+            end_date (string, optional): The end date for filtering orders by creation date, in YYYY-MM-DD format.
+        ### Instance:
+            URL: 127.0.0.1:8000/api/manager/orders/
+            {
+               "user_id": null,
+              "statuses": ["unpaid", "processing"],
+              "start_date": "2024-01-01",
+              "end_date": "2024-02-28"
+            }
+        ### Responses:
+            200 OK: Successfully retrieved a filtered list of orders. The response is paginated and includes order details based on the criteria specified in the request body.
+            400 Bad Request: The request failed due to invalid input or other issues. An error message is included in the response body.
+        """
+        from datetime import datetime
+
+        user_id = request.data.get('user_id', None)
+        statuses = request.data.get('statuses', [])  # 现在接受状态列表
+        start_date = request.data.get('start_date', None)
+        end_date = request.data.get('end_date', None)
+
+        queries = Q()
+
+        # 用户ID查询条件（如果提供）
+        if user_id is not None:
+            queries &= Q(user_id=user_id)
+
+        # 多种状态查询条件（如果提供）
+        if statuses:
+            queries &= Q(status__in=statuses)  # 使用__in来过滤多个状态
+
+        # 创建时间范围查询条件（如果提供开始和结束日期）
+        if start_date and end_date:
+            start_datetime = datetime.strptime(start_date, "%Y-%m-%d")
+            end_datetime = datetime.strptime(end_date, "%Y-%m-%d")
+            queries &= Q(createTime__range=(start_datetime, end_datetime))
+
+        # 执行查询
+        orders = Order.objects.filter(queries).order_by('id')
+
+        paginator = pagination.PageNumberPagination()
+        result_page = paginator.paginate_queryset(orders, request)
+        serializer = SimpleManagerOrderSerializer(result_page, many=True)
+        return paginator.get_paginated_response(serializer.data)
+
+
 class UserOrderAPIView(APIView):
     """
     List all orders for a given user, or create a new order for the user.
@@ -486,13 +832,99 @@ class UserOrderAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, user_id):
+        """
+        ### Description:
+            Retrieves a paginated list of all orders for the specified user, sorted by order ID.
+        ### Parameters:
+            Path Parameters:
+            user_id (integer): The unique identifier of the user whose orders are to be listed.
+        ### Instance:
+            127.0.0.1:8000/api/users/10/orders/
+        ### Responses:
+            200 OK: Successfully retrieved a list of orders for the user. The response is paginated and includes details of each order.
+            404 Not Found: The specified user does not exist or has no orders. An appropriate error message is included in the response body.
+        """
         orders = Order.objects.filter(user_id=user_id).order_by('id')
         paginator = pagination.PageNumberPagination()
         result_page = paginator.paginate_queryset(orders, request)
         serializer = SimpleUserOrderSerializer(result_page, many=True)
         return paginator.get_paginated_response(serializer.data)
 
+    def post(self, request, user_id, *args, **kwargs):
+        """
+        ### Description:
+            Allows filtering of orders for the specified user based on a list of statuses and a creation date range. This method facilitates advanced searching and filtering of user orders.
+        ### Parameters:
+            Path Parameters:
+            user_id (integer): The unique identifier of the user whose orders are to be filtered.
+            Body Parameters:
+            statuses (list of strings, optional): A list of order statuses to filter by.
+            start_date (string, optional): The start date for filtering orders by creation date, in YYYY-MM-DD format.
+            end_date (string, optional): The end date for filtering orders by creation date, in YYYY-MM-DD format.
+        ### Instance:
+            URL:127.0.0.1:8000/api/users/10/orders/
+            {
+              "statuses": ["unpaid","processing","Done"],
+              "start_date": "2024-01-01",
+              "end_date": "2024-02-28"
+            }
+        ### Responses:
+            200 OK: Successfully retrieved a filtered list of orders for the user. The response is paginated and includes details of each order that matches the filter criteria.
+            400 Bad Request: The request failed due to invalid input, such as an incorrect date format. An error message detailing the reason for failure is included in the response body.
+        """
+        from datetime import datetime
+        statuses = request.data.get('statuses', [])  # 现在接受状态列表
+        start_date = request.data.get('start_date', None)
+        end_date = request.data.get('end_date', None)
+
+        # 基础查询条件：用户ID
+        if user_id is not None:
+            queries = Q(user_id=user_id)
+
+            # 状态查询条件（如果提供）
+            if statuses:
+                queries &= Q(status__in=statuses)
+
+            # 创建时间范围查询条件（如果提供开始和结束日期）
+            if start_date and end_date:
+                try:
+                    start_datetime = datetime.strptime(start_date, "%Y-%m-%d")
+                    end_datetime = datetime.strptime(end_date, "%Y-%m-%d")
+                    queries &= Q(createTime__range=(start_datetime, end_datetime))
+                except ValueError:
+                    return Response({"error": "Invalid date format. Please use YYYY-MM-DD."},
+                                    status=status.HTTP_400_BAD_REQUEST)
+
+            # 执行查询
+            orders = Order.objects.filter(queries).order_by('id')
+
+            paginator = pagination.PageNumberPagination()
+            result_page = paginator.paginate_queryset(orders, request)
+            serializer = SimpleUserOrderSerializer(result_page, many=True)
+            return paginator.get_paginated_response(serializer.data)
+
+
+class UserOrderCreateAPIView(APIView):
+    authentication_classes = [TokenAuthentication]
+    permission_classes = [IsAuthenticated]
     def post(self, request, user_id):
+        """
+         ### Description:
+            This endpoint allows for the creation of a new order for a given user based on the contents of their shopping cart and a specified delivery address. It validates the existence of the shopping cart and address, calculates the total price of the cart items, and persists the order. Upon successful creation, the shopping cart items are cleared.
+        ### Parameters:
+            Path Parameters:
+            user_id (integer): The unique identifier of the user for whom the order is being created.
+        ### Body Parameters:
+            address_id (integer): The unique identifier of the delivery address for the new order.
+        ### Instance:
+            URL: 127.0.0.1:8000/api/users/create/10/orders/
+            {"address_id":"3"}
+        ### Responses:
+            201 Created: The order was successfully created. The response includes the details of the newly created order.
+            404 Not Found: Either the shopping cart or the specified address does not exist. An appropriate error message is included in the response body.
+            400 Bad Request: The shopping cart is empty, or there was an error in the order data validation. An error message detailing the reason for the failure is included in the response body.
+
+        """
         try:
             # 假设每个用户只有一个购物车
             cart = ShoppingCart.objects.get(userID_id=user_id)
@@ -542,9 +974,24 @@ class UserOrderAPIView(APIView):
 
 
 class AliPayAPIView(APIView):
+    authentication_classes = [TokenAuthentication]
     permission_classes = [IsAuthenticated]
 
     def get(self, request, user_id, pk):
+        """
+        ### Request:
+            GET Method: The request does not require anybody payload; instead, it uses user_id and pk (order ID) path parameters to identify the specific order.
+        ### Parameters:
+            Path Parameters:
+            user_id (integer): The unique identifier of the user making the payment.
+            pk (integer): The primary key of the order for which the payment is being processed.
+        ### Instance:
+            URL: 127.0.0.1:8000/api/alipay/10/14/
+        ### Responses:
+            200 OK: Successfully generated the AliPay payment URL. The response includes the pay_url which can be used to redirect the user to complete the payment.
+            404 Not Found: The specified order does not exist. An appropriate error message is included in the response body.
+        """
+
         app_private_key_string = open("backstage/Privatekey.txt").read()
         alipay_public_key_string = open("backstage/alipayPublicCert.txt").read()
 
