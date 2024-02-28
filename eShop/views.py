@@ -1,8 +1,9 @@
 from django.contrib.auth import authenticate
 from django.shortcuts import render
+from rest_framework.permissions import IsAuthenticated
 
 # Create your views here.
-from .serializers import UserSerializer
+from .serializers import UserSerializer, PasswordSerializer, UserUpdateSerializer
 from django.core.cache import cache
 import random
 from rest_framework.views import APIView
@@ -37,26 +38,26 @@ class SendVerificationCodeView(APIView):
 
 
 class RegisterView(APIView):
-    """
-           ### Register
-           * Method: POST
-           ###  Request Body:
-               - email: [user or manager's email]
-               - password [password]
-               - user_type [user or manager]
-               - username [username]
-               - v_code [manager's code]
-
-           ### Success Response
-               "message": "Registration successful",
-                "user": {
-                    "id": 6,
-                    "email": "Albert.Zhang@gmail.com",
-                    "username": "Albert",
-                    "user_type": "manager"
-                }
-           """
     def post(self, request):
+        """
+        ### Register
+        * Method: POST
+        ###  Request Body:
+            - email: [user or manager's email]
+            - password [password]
+            - user_type [user or manager]
+            - username [username]
+            - v_code [manager's code]
+
+        ### Success Response
+            "message": "Registration successful",
+            "user": {
+                "id": 6,
+                "email": "Albert.Zhang@gmail.com",
+                "username": "Albert",
+                "user_type": "manager"
+             }
+        """
         data = request.data
         email = data.get('email')
         user_type = data.get('user_type')  # 提供默认值为'user'
@@ -115,3 +116,56 @@ class LoginView(APIView):
             }, status=status.HTTP_200_OK)
         else:
             return Response({"error": "Invalid credentials or user type."}, status=status.HTTP_401_UNAUTHORIZED)
+
+class UpdateUserAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def patch(self, request, *args, **kwargs):
+        """
+        ### Update User details API
+        * Method: PATCH
+        * Authentication Required: Yes
+        * Permissions: IsAuthenticated
+        ### Body Parameters:
+            email (string, optional): new email
+            username (string, optional): new username
+        ### Success Response:
+            Code: 200 OK
+        ### Error Response:
+            Code: 400 Bad Request
+        """
+        user = request.user
+        serializer = UserUpdateSerializer(user, data=request.data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+class ChangePasswordView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def put(self, request, user_id):
+        """
+        ### Change password
+        * Method: PUT
+        * Authentication Required: Yes
+        * Permissions: IsAuthenticated
+        ### Body Parameters:
+            old_password (string, required): current password.
+            new_password (string, required): new password.
+        Success Response:
+            Code: 200 OK
+            Content: Password updated successfully
+        Error Response:
+            Code: 400 Bad Request or  403 Forbidden
+            Content: The old password is incorrect.
+        """
+        user = self.request.user
+        if str(user.id) != user_id:
+            return Response({"error": "You are not authorised to change another user's password."}, status=403)
+        serializer = PasswordSerializer(data=request.data, instance=user)
+        if serializer.is_valid():
+            serializer.save()
+            return Response({"message": "Password updated successfully."})
+        else:
+            return Response(serializer.errors, status=400)

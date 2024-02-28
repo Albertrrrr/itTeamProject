@@ -16,7 +16,7 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path, include
-from eShop.views import RegisterView, LoginView, SendVerificationCodeView
+from eShop.views import RegisterView, LoginView, SendVerificationCodeView, UpdateUserAPIView, ChangePasswordView
 from backstage.views import ProductCategoryView, ProductView, ProductDetailView, ShoppingCartView, \
     ShoppingCartItemByProductDetail, ShoppingCartItemListCreate, AddressList, AddressDetail,UserOrderAPIView, UserOrderOneAPIView, AliPayAPIView, \
     ManagerOrderOneAPIView, UserOrderCreateAPIView, ProductSearchAPIView
@@ -30,6 +30,8 @@ urlpatterns = [
     path('api/register/', RegisterView.as_view(), name='register'),
     path('api/login/', LoginView.as_view(), name='login'),
     path('api/generateVCode/', SendVerificationCodeView.as_view(), name='v-code'),
+    path('api/user/update/', UpdateUserAPIView.as_view(), name='user-update'),
+    path('api/user/change-password/', ChangePasswordView.as_view(), name='user-change-password'),
     path('api/categories/', ProductCategoryView.as_view(), name='category-list-create'),
     path('api/categories/<int:pk>/', ProductCategoryView.as_view(), name='category-detail-update-delete'),
     path('api/products/', ProductView.as_view(), name='product-list'),

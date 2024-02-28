@@ -40,3 +40,36 @@ class UserSerializer(serializers.ModelSerializer):
             instance.set_password(password)
         instance.save()
         return instance
+
+class PasswordSerializer(serializers.Serializer):
+    old_password = serializers.CharField(required=True)
+    new_password = serializers.CharField(required=True)
+
+    def validate_new_password(self, value):
+        # 验证新密码的复杂性要求
+        if len(value) < 8:
+            raise serializers.ValidationError("密码必须至少为8位长。")
+        if not any(char.islower() for char in value):
+            raise serializers.ValidationError("密码必须包含至少一个小写字母。")
+        if not any(char.isupper() for char in value):
+            raise serializers.ValidationError("密码必须包含至少一个大写字母。")
+        return value
+
+    def update(self, instance, validated_data):
+        # 验证旧密码是否正确
+        old_password = validated_data.get('old_password')
+        if not instance.check_password(old_password):
+            raise serializers.ValidationError({"old_password": "The old password is incorrect."})
+        # 设置新密码
+        instance.set_password(validated_data.get('new_password'))
+        instance.save()
+        return instance
+
+class UserUpdateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CustomUser
+        fields = ['email', 'username']
+        extra_kwargs = {
+            'email': {'required': False},
+            'username': {'required': False},
+        }
