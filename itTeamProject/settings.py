@@ -126,8 +126,8 @@ AUTH_PASSWORD_VALIDATORS = [
     },
 ]
 AUTHENTICATION_BACKENDS = [
-    'eShop.backends.EmailBackend',  # 使用你的应用名称和文件名
-    'django.contrib.auth.backends.ModelBackend',  # 保留默认后端以支持用户名认证
+    'eShop.backends.EmailBackend',
+    'django.contrib.auth.backends.ModelBackend',
 ]
 # Internationalization
 # https://docs.djangoproject.com/en/4.2/topics/i18n/

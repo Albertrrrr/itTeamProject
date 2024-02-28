@@ -282,7 +282,9 @@ class ProductDetailView(APIView):
 class ProductSearchAPIView(APIView):
     authentication_classes = [TokenAuthentication]
     permission_classes = [IsAuthenticated]
-
+    """
+    User Search
+    """
     def post(self, request, *args, **kwargs):
         """
             ### URL:
@@ -321,6 +323,29 @@ class ProductSearchAPIView(APIView):
         else:
             return Response({"message": "Name parameter is missing."}, status=status.HTTP_400_BAD_REQUEST)
 
+    def get(self, request,  *args, **kwargs):
+        """
+        ### Description:
+            This endpoint retrieves a paginated list of products filtered by a specific category. It requires clients to provide a category ID as part of the request data to filter products accordingly. If the category ID is not provided, the API responds with an error message indicating that the category parameter is missing.
+        ### Request Parameters:
+            Body Parameters:
+            category (integer, required): The unique identifier (ID) of the category to filter products by.
+        ### Instance:
+            URL:127.0.0.1:8000/api/search/products/
+            {"category":2}
+        ### Responses:
+            200 OK: Successfully retrieved a list of products for the specified category. The response is paginated and includes details of each product, such as product ID, name, category ID, price, stock, description, and URL.
+            400 Bad Request: The request failed due to missing the required category parameter. An error message is included in the response body.
+        """
+        category = request.data.get("category", None)
+        if category is not None:
+            products = Product.objects.filter(categoryID=category).order_by("id")
+            paginator = pagination.PageNumberPagination()
+            result_page = paginator.paginate_queryset(products, request)
+            serializer = ProductSerializer(result_page, many=True)
+            return paginator.get_paginated_response(serializer.data)
+        else:
+            return Response({"message": "category parameter is missing."}, status=status.HTTP_400_BAD_REQUEST)
 
 class ShoppingCartView(APIView):
     authentication_classes = [TokenAuthentication]
@@ -328,22 +353,22 @@ class ShoppingCartView(APIView):
 
     def get(self, request, user_id, format=None):
         """
-            ### Retrieve a ShoppingCart ID by CustomUser ID.
-            * Request Type: GET
-            ### Parameters:
-                user_id (URL path parameter): The unique identifier of the user (must be an integer).
-            ### Instance:
-                127.0.0.1:8000/api/shopping-cart/10/
-            ### Success Response:
-                Code: 200 OK
-            ### Content Example:
+        ### Retrieve a ShoppingCart ID by CustomUser ID.
+        ### Request Type: GET
+        ### Parameters:
+            user_id (URL path parameter): The unique identifier of the user (must be an integer).
+        ### Instance:
+            127.0.0.1:8000/api/shopping-cart/10/
+        ### Success Response:
+            Code: 200 OK
+         ### Content Example:
                 {
                   "shoppingCartID": 12
                 }
-           ###  Error Response:
-                Code: 404 Not Found
-                Content: If there is no shopping cart corresponding to the specified user ID, a 404 status code will be returned.
-            """
+        ###  Error Response:
+            Code: 404 Not Found
+            Content: If there is no shopping cart corresponding to the specified user ID, a 404 status code will be returned.
+        """
         try:
             shopping_cart = ShoppingCart.objects.get(userID=user_id)
             # 直接返回购物车ID

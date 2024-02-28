@@ -1,7 +1,9 @@
 from django.contrib.auth import authenticate
 from django.shortcuts import render
+from rest_framework.generics import get_object_or_404
 from rest_framework.permissions import IsAuthenticated
 
+from .models import CustomUser
 # Create your views here.
 from .serializers import UserSerializer, PasswordSerializer, UserUpdateSerializer
 from django.core.cache import cache
@@ -129,6 +131,12 @@ class UpdateUserAPIView(APIView):
         ### Body Parameters:
             email (string, optional): new email
             username (string, optional): new username
+        ### Instance:
+            URL: 127.0.0.1:8000/api/user/update/
+            {
+                "email":"test1235678@test.com",
+                "username":"Key"
+            }
         ### Success Response:
             Code: 200 OK
         ### Error Response:
@@ -153,16 +161,24 @@ class ChangePasswordView(APIView):
         ### Body Parameters:
             old_password (string, required): current password.
             new_password (string, required): new password.
-        Success Response:
+        ### Instance:
+            URL: 127.0.0.1:8000/api/user/11/change-password/
+            {
+                "old_password":"12341234Aa",
+                "new_password":"123123Aa"
+            }
+        ### Success Response:
             Code: 200 OK
             Content: Password updated successfully
-        Error Response:
+        ### Error Response:
             Code: 400 Bad Request or  403 Forbidden
             Content: The old password is incorrect.
         """
-        user = self.request.user
-        if str(user.id) != user_id:
+
+        user = get_object_or_404(CustomUser, id=user_id)
+        if request.user != user:
             return Response({"error": "You are not authorised to change another user's password."}, status=403)
+
         serializer = PasswordSerializer(data=request.data, instance=user)
         if serializer.is_valid():
             serializer.save()
