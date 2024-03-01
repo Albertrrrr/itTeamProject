@@ -1021,7 +1021,7 @@ class AliPayAPIView(APIView):
         current_working_directory = os.getcwd()
 
         # 构建到特定文件的绝对路径
-        app_private_key_path = os.path.join(current_working_directory, 'backstage', 'Privatekey.txt')
+        app_private_key_path = os.path.join(current_working_directory, 'backstage', 'PrivateKey.txt')
         alipay_public_key_path = os.path.join(current_working_directory, 'backstage', 'alipayPublicCert.txt')
 
         # 使用with语句安全地打开和读取文件
