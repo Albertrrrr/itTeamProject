@@ -27,6 +27,7 @@ DEBUG = True
 
 ALLOWED_HOSTS = ['*']
 
+TIME_ZONE = 'Europe/London'
 
 # Application definition
 
