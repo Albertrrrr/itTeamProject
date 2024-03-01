@@ -2,14 +2,24 @@ import json
 
 from celery import shared_task
 from alipay import AliPay
-import time
+import time,os
 
 from django.db.models import F
 
 from backstage.models import Order, Product
+# 获取当前工作目录的绝对路径
+current_working_directory = os.getcwd()
 
-app_private_key_string = open("backstage/Privatekey.txt").read()
-alipay_public_key_string = open("backstage/alipayPublicCert.txt").read()
+# 构建到特定文件的绝对路径
+app_private_key_path = os.path.join(current_working_directory, 'backstage', 'Privatekey.txt')
+alipay_public_key_path = os.path.join(current_working_directory, 'backstage', 'alipayPublicCert.txt')
+
+# 使用with语句安全地打开和读取文件
+with open(app_private_key_path, 'r') as file:
+     app_private_key_string = file.read()
+
+with open(alipay_public_key_path, 'r') as file:
+    alipay_public_key_string = file.read()
 
 
 @shared_task

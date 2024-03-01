@@ -1,5 +1,5 @@
 import datetime
-
+import os
 from MySQLdb import IntegrityError
 from alipay import AliPay, AliPayConfig
 from django.db.models import Q
@@ -1017,8 +1017,24 @@ class AliPayAPIView(APIView):
             404 Not Found: The specified order does not exist. An appropriate error message is included in the response body.
         """
 
-        app_private_key_string = open("backstage/Privatekey.txt").read()
-        alipay_public_key_string = open("backstage/alipayPublicCert.txt").read()
+        # 获取当前工作目录的绝对路径
+        current_working_directory = os.getcwd()
+
+        # 构建到特定文件的绝对路径
+        app_private_key_path = os.path.join(current_working_directory, 'backstage', 'Privatekey.txt')
+        alipay_public_key_path = os.path.join(current_working_directory, 'backstage', 'alipayPublicCert.txt')
+
+        # 使用with语句安全地打开和读取文件
+        with open(app_private_key_path, 'r') as file:
+            app_private_key_string = file.read()
+
+        with open(alipay_public_key_path, 'r') as file:
+            alipay_public_key_string = file.read()
+
+        # 输出路径，仅用于验证
+        print("App Private Key Path:", app_private_key_path)
+        print("Alipay Public Key Path:", alipay_public_key_path)
+
 
         alipay = AliPay(
             appid="9021000129661967",
