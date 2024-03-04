@@ -11,12 +11,12 @@ class UserSerializer(serializers.ModelSerializer):
     def validate_password(self, value):
         # 验证密码不少于8位
         if len(value) < 8:
-            raise serializers.ValidationError("密码必须至少为8位长。")
+            raise serializers.ValidationError("Passwords must be at least 8 digits in length.")
         # 验证密码包含大小写
         if not any(char.islower() for char in value):
-            raise serializers.ValidationError("密码必须包含至少一个小写字母。")
+            raise serializers.ValidationError("Passwords must contain at least one lowercase letter.")
         if not any(char.isupper() for char in value):
-            raise serializers.ValidationError("密码必须包含至少一个大写字母。")
+            raise serializers.ValidationError("The password must contain at least one uppercase letter.")
         # 只验证密码复杂性，不在这里加密密码
         return value
 
