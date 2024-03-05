@@ -416,6 +416,7 @@ class ShoppingCartItemListCreate(APIView):
             items_with_final_price.append(item_with_final_price)
             total_final_price += final_price  # 累加最终价格到总和中
 
+        total_final_price = round(total_final_price, 2)
         # 构建响应数据，包括所有项的详细信息和最终价格的总和
         response_data = {
             'items': items_with_final_price,
