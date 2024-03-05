@@ -9,9 +9,18 @@ class ProductCategorySerializer(serializers.ModelSerializer):
 
 
 class ProductSerializer(serializers.ModelSerializer):
+    category_name = serializers.SerializerMethodField()  # 添加一个自定义字段
+
     class Meta:
         model = Product
-        fields = '__all__'
+        fields = '__all__'  # 或者你也可以明确列出所有字段加上'category_name'
+
+    def get_category_name(self, obj):
+        # 检查categoryID是否存在，避免在未设置时引发异常
+        if obj.categoryID:
+            return obj.categoryID.name
+        return None  # 如果没有关联的categoryID，返回None
+
 
 class ProductSerializerCart(serializers.ModelSerializer):
     class Meta:
