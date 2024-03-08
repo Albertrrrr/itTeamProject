@@ -138,7 +138,6 @@ class ProductView(APIView):
         """
         products = Product.objects.all()
         paginator = pagination.PageNumberPagination()
-        paginator.page_size = 12
         result_page = paginator.paginate_queryset(products, request)
         serializer = ProductSerializer(result_page, many=True)
         return paginator.get_paginated_response(serializer.data)
@@ -324,21 +323,20 @@ class ProductSearchAPIView(APIView):
         else:
             return Response({"message": "Name parameter is missing."}, status=status.HTTP_400_BAD_REQUEST)
 
-    def get(self, request,  *args, **kwargs):
+    def get(self, request, *args, **kwargs):
         """
         ### Description:
-            This endpoint retrieves a paginated list of products filtered by a specific category. It requires clients to provide a category ID as part of the request data to filter products accordingly. If the category ID is not provided, the API responds with an error message indicating that the category parameter is missing.
+            This endpoint retrieves a paginated list of products filtered by a specific category. It requires clients to provide a category ID as a query parameter to filter products accordingly. If the category ID is not provided, the API responds with an error message indicating that the category parameter is missing.
         ### Request Parameters:
-            Body Parameters:
+            Query Parameters:
             category (integer, required): The unique identifier (ID) of the category to filter products by.
         ### Instance:
-            URL:127.0.0.1:8000/api/search/products/
-            {"category":2}
+            URL: 127.0.0.1:8000/api/search/products/?category=2
         ### Responses:
             200 OK: Successfully retrieved a list of products for the specified category. The response is paginated and includes details of each product, such as product ID, name, category ID, price, stock, description, and URL.
             400 Bad Request: The request failed due to missing the required category parameter. An error message is included in the response body.
         """
-        category = request.data.get("category", None)
+        category = request.query_params.get("category", None)
         if category is not None:
             products = Product.objects.filter(categoryID=category).order_by("id")
             paginator = pagination.PageNumberPagination()
