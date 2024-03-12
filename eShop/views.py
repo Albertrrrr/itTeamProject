@@ -69,7 +69,7 @@ class RegisterView(APIView):
         # 如果是管理员类型，验证验证码
         if user_type == 'manager':
             if not verification_code or str(verification_code) != str(stored_code):
-                return Response({"error": "无效或错误的验证码"}, status=status.HTTP_400_BAD_REQUEST)
+                return Response({"error": "Invalid or incorrect CAPTCHA Code"}, status=status.HTTP_400_BAD_REQUEST)
             cache.delete(f'v_code_{email}')  # 验证码正确后清除
 
         # 使用序列化器进行数据验证和保存
