@@ -105,10 +105,11 @@ DATABASES = {
         'NAME': "IT",
         "USER": "root",
         "PASSWORD": "3022008a",
-        "HOST": "35.230.128.247",
+        "HOST": "34.147.195.57",
         "PORT": "3306"
     }
 }
+# 35.230.128.247
 
 CORS_ALLOW_ALL_ORIGINS = True
 
