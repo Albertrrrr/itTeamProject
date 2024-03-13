@@ -314,7 +314,7 @@ class ProductSearchAPIView(APIView):
             """
         name_query = request.data.get('name', None)
         if name_query is not None:
-            # 使用icontains进行不区分大小写的搜索
+            # Case-insensitive searches using icontains
             products = Product.objects.filter(name__icontains=name_query)
             paginator = pagination.PageNumberPagination()
             result_page = paginator.paginate_queryset(products, request)
@@ -405,17 +405,17 @@ class ShoppingCartItemListCreate(APIView):
 
         serializer = ShoppingCartItemSerializer(items, many=True)
 
-        total_final_price = 0  # 初始化最终价格的总和
+        total_final_price = 0  # Initialise the sum of the final prices
         items_with_final_price = []
         for item in serializer.data:
             final_price = item['quantity'] * item['product_detail']['price']
-            item_with_final_price = item  # 复制原有数据
+            item_with_final_price = item  # Copy to
             item_with_final_price['final_price'] = final_price
             items_with_final_price.append(item_with_final_price)
-            total_final_price += final_price  # 累加最终价格到总和中
+            total_final_price += final_price  # Accumulate the final price into the sum
 
         total_final_price = round(total_final_price, 2)
-        # 构建响应数据，包括所有项的详细信息和最终价格的总和
+        # Constructing the response data, including details of all items and the sum of the final prices
         response_data = {
             'items': items_with_final_price,
             'total_final_price': total_final_price
@@ -452,7 +452,7 @@ class ShoppingCartItemListCreate(APIView):
                 cart = ShoppingCart.objects.get(id=cart_id)
                 product_id = request.data.get('productID')
                 product = Product.objects.get(id=product_id)
-                # 检查库存是否足够
+                # Checking the adequacy of stock
                 requested_quantity = serializer.validated_data.get('quantity')
                 if requested_quantity > product.stock:
                     return Response({'quantity': f'Requested quantity exceeds available stock of {product.stock}.'},
@@ -820,27 +820,27 @@ class ManagerOrderOneAPIView(APIView):
         from datetime import datetime
 
         user_id = request.data.get('user_id', None)
-        statuses = request.data.get('statuses', [])  # 现在接受状态列表
+        statuses = request.data.get('statuses', [])  # Now accepting the status list
         start_date = request.data.get('start_date', None)
         end_date = request.data.get('end_date', None)
 
         queries = Q()
 
-        # 用户ID查询条件（如果提供）
+        # User ID Query Criteria
         if user_id is not None:
             queries &= Q(user_id=user_id)
 
-        # 多种状态查询条件（如果提供）
+        # Multiple status query conditions
         if statuses:
-            queries &= Q(status__in=statuses)  # 使用__in来过滤多个状态
+            queries &= Q(status__in=statuses)  # Use __in to filter multiple states
 
-        # 创建时间范围查询条件（如果提供开始和结束日期）
+        # Create a time range query condition
         if start_date and end_date:
             start_datetime = datetime.strptime(start_date, "%Y-%m-%d")
             end_datetime = datetime.strptime(end_date, "%Y-%m-%d")
             queries &= Q(createTime__range=(start_datetime, end_datetime))
 
-        # 执行查询
+        # executing query
         orders = Order.objects.filter(queries).order_by('id')
 
         paginator = pagination.PageNumberPagination()
@@ -898,19 +898,19 @@ class UserOrderAPIView(APIView):
             400 Bad Request: The request failed due to invalid input, such as an incorrect date format. An error message detailing the reason for failure is included in the response body.
         """
         from datetime import datetime
-        statuses = request.data.get('statuses', [])  # 现在接受状态列表
+        statuses = request.data.get('statuses', [])  # Now accepting the status list
         start_date = request.data.get('start_date', None)
         end_date = request.data.get('end_date', None)
 
-        # 基础查询条件：用户ID
+        # Basic query: User ID
         if user_id is not None:
             queries = Q(user_id=user_id)
 
-            # 状态查询条件（如果提供）
+            # Status query condition (if provided)
             if statuses:
                 queries &= Q(status__in=statuses)
 
-            # 创建时间范围查询条件（如果提供开始和结束日期）
+            # Create a time range query condition (if start and end dates are provided)
             if start_date and end_date:
                 try:
                     start_datetime = datetime.strptime(start_date, "%Y-%m-%d")
@@ -920,7 +920,7 @@ class UserOrderAPIView(APIView):
                     return Response({"error": "Invalid date format. Please use YYYY-MM-DD."},
                                     status=status.HTTP_400_BAD_REQUEST)
 
-            # 执行查询
+            # perform a search
             orders = Order.objects.filter(queries).order_by('id')
 
             paginator = pagination.PageNumberPagination()
@@ -951,19 +951,19 @@ class UserOrderCreateAPIView(APIView):
 
         """
         try:
-            # 假设每个用户只有一个购物车
+
             cart = ShoppingCart.objects.get(userID_id=user_id)
         except ShoppingCart.DoesNotExist:
             return Response({"error": "Shopping cart not found."}, status=status.HTTP_404_NOT_FOUND)
 
         address_id = request.data.get('address_id')
         try:
-            # 根据地址ID获取地址实例
+            # Example of getting an address based on an address ID
             address = Address.objects.get(pk=address_id, user_id=user_id)
         except Address.DoesNotExist:
             return Response({"error": "Address not found."}, status=status.HTTP_404_NOT_FOUND)
 
-            # 序列化地址信息
+            # Serialising address information
         address_serializer = AddressSerializer(address)
 
         items = ShoppingCartItem.objects.filter(cartID_id=cart)
@@ -972,18 +972,18 @@ class UserOrderCreateAPIView(APIView):
 
         serializer = ShoppingCartItemSerializer(items, many=True)
 
-        total_final_price = 0  # 初始化最终价格的总和
+        total_final_price = 0  # Initialise the sum of the final prices
         items_with_final_price = []
         for item in serializer.data:
             final_price = item['quantity'] * item['product_detail']['price']
-            item_with_final_price = item  # 复制原有数据
+            item_with_final_price = item
             item_with_final_price['final_price'] = final_price
             items_with_final_price.append(item_with_final_price)
-            total_final_price += final_price  # 累加最终价格到总和中
+            total_final_price += final_price
 
         order_data = {
             'user': user_id,
-            'item': items_with_final_price,  # 确保这里符合OrderSerializer的期望格式
+            'item': items_with_final_price,
             'totalCost': total_final_price,
             'address': address_serializer.data
         }
@@ -991,7 +991,7 @@ class UserOrderCreateAPIView(APIView):
         order_serializer = OrderSerializer(data=order_data)
         if order_serializer.is_valid():
             order_serializer.save()
-            # 清空购物车中的记录
+            # Empty Shopping Cart
             items.delete()
             return Response(order_serializer.data, status=status.HTTP_201_CREATED)
         else:
@@ -1017,52 +1017,52 @@ class AliPayAPIView(APIView):
             404 Not Found: The specified order does not exist. An appropriate error message is included in the response body.
         """
 
-        # 获取当前工作目录的绝对路径
+        # Get the absolute path to the current working directory
         current_working_directory = os.getcwd()
 
-        # 构建到特定文件的绝对路径
+        # Absolute path to build to a specific file
         app_private_key_path = os.path.join(current_working_directory, 'backstage', 'PrivateKey.txt')
         alipay_public_key_path = os.path.join(current_working_directory, 'backstage', 'alipayPublicCert.txt')
 
-        # 使用with语句安全地打开和读取文件
+        # Open and read files securely using the with statement
         with open(app_private_key_path, 'r') as file:
             app_private_key_string = file.read()
 
         with open(alipay_public_key_path, 'r') as file:
             alipay_public_key_string = file.read()
 
-        # 输出路径，仅用于验证
+        # Output path, for validation only
         print("App Private Key Path:", app_private_key_path)
         print("Alipay Public Key Path:", alipay_public_key_path)
 
 
         alipay = AliPay(
             appid="9021000129661967",
-            app_notify_url=None,  # 不接收异步通知
+            app_notify_url=None,  # Do not receive asynchronous notifications
             app_private_key_string=app_private_key_string,
             alipay_public_key_string=alipay_public_key_string,
             sign_type="RSA2",
-            debug=True,  # 默认False，True表示沙箱环境
+            debug=True,
             config=AliPayConfig(timeout=15)
         )
 
         order = Order.objects.get(id=pk, user_id=user_id)
 
         rounded_number = round(order.totalCost, 2)
-        # 生成支付的url
+        # Generate payment url
         order_string = alipay.api_alipay_trade_page_pay(
             out_trade_no=order.id,
-            total_amount=str(rounded_number),  # 将Decimal转换为字符串传递
+            total_amount=str(rounded_number),  # Convert Decimal to String Pass
             subject="P",
-            return_url=None,  # 不关心用户支付完成后的页面跳转
-            notify_url=None  # 可选, 不填则不会发送异步通知
+            return_url=None,  # Doesn't care about the page jump after the user completes payment
+            notify_url=None
         )
 
-        # 沙箱环境下，用沙箱的网关
+        # Sandboxed environments with sandboxed gateways
         pay_url = f"https://openapi-sandbox.dl.alipaydev.com/gateway.do?{order_string}"
 
         query_order_status.delay(order.id)
         # print(add.delay(10,5))
 
-        # 直接返回支付链接给前端，而不进行页面跳转
+        # Returns the payment link directly to the front-end without a page jump
         return Response({"pay_url": pay_url})

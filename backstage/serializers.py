@@ -5,22 +5,20 @@ from .models import productCategory, Product, ShoppingCartItem, Address, Order
 class ProductCategorySerializer(serializers.ModelSerializer):
     class Meta:
         model = productCategory
-        fields = '__all__'  # 列出所有需要序列化的字段 ['id', 'name', 'description']
+        fields = '__all__'
 
 
 class ProductSerializer(serializers.ModelSerializer):
-    category_name = serializers.SerializerMethodField()  # 添加一个自定义字段
+    category_name = serializers.SerializerMethodField()
 
     class Meta:
         model = Product
-        fields = '__all__'  # 或者你也可以明确列出所有字段加上'category_name'
+        fields = '__all__'
 
     def get_category_name(self, obj):
-        # 检查categoryID是否存在，避免在未设置时引发异常
         if obj.categoryID:
             return obj.categoryID.name
-        return None  # 如果没有关联的categoryID，返回None
-
+        return None
 
 class ProductSerializerCart(serializers.ModelSerializer):
     class Meta:

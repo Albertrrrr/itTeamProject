@@ -7,14 +7,14 @@ import time,os
 from django.db.models import F
 
 from backstage.models import Order, Product
-# 获取当前工作目录的绝对路径
+# Get the absolute path to the current working directory
 current_working_directory = os.getcwd()
 
-# 构建到特定文件的绝对路径
+# Absolute path to build to a specific file
 app_private_key_path = os.path.join(current_working_directory, 'backstage', 'PrivateKey.txt')
 alipay_public_key_path = os.path.join(current_working_directory, 'backstage', 'alipayPublicCert.txt')
 
-# 使用with语句安全地打开和读取文件
+# Open and read files securely using the with statement
 with open(app_private_key_path, 'r') as file:
      app_private_key_string = file.read()
 
@@ -26,23 +26,22 @@ with open(alipay_public_key_path, 'r') as file:
 def query_order_status(order_id):
     alipay = AliPay(
         appid="9021000129661967",
-        app_notify_url=None,  # 异步通知URL，本例中不使用
+        app_notify_url=None,
         app_private_key_string=app_private_key_string,
         alipay_public_key_string=alipay_public_key_string,
         sign_type="RSA2",
-        debug=True  # 根据是否是沙箱环境设置
+        debug=True
     )
     flag = False
     order = Order.objects.get(id=order_id)
     for _ in range(180):
         response = alipay.api_alipay_trade_query(out_trade_no=order_id)
         if response.get("trade_status", "") in ["TRADE_SUCCESS", "TRADE_FINISHED"]:
-            print("支付成功")
-            # 更新数据库中的订单状态为已支付
+            print("Payment successful")
             try:
                 order.isPaid = True
                 data = order.item
-                print(f"订单{order_id}的支付状态已更新为已支付。")
+                print(f"Order{order_id}:The payment status has been updated to Paid。")
                 flag = True
                 if flag:
                     order.status = "processing"
@@ -50,10 +49,9 @@ def query_order_status(order_id):
                         product_id = item["productID"]
                         quantity = item["quantity"]
 
-                        # 尝试获取Product实例，然后更新库存
                         try:
                             product = Product.objects.get(pk=product_id)
-                            product.stock -= quantity  # 假设您是减去库存
+                            product.stock -= quantity
                             product.save()
                             print(f"Updated stock for Product ID {product_id}. New stock is {product.stock}.")
                         except Product.DoesNotExist:

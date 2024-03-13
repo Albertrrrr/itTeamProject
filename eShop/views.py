@@ -30,9 +30,9 @@ class SendVerificationCodeView(APIView):
         if not email:
             return Response({"error": "E-mail is required."}, status=400)
 
-        # 生成四位数的验证码
+        # Generate a four-digit CAPTCHA
         code = random.randint(1000, 9999)
-        # 使用邮箱作为键，将验证码存储到缓存中，设置过期时间为5分钟
+        # Use the mailbox as a key to store the captcha in the cache, set the expiry time to 5 minutes
         cache.set(f'v_code_{email}', code, timeout=300)
         print("code: ", code)
 
@@ -62,26 +62,26 @@ class RegisterView(APIView):
         """
         data = request.data
         email = data.get('email')
-        user_type = data.get('user_type')  # 提供默认值为'user'
+        user_type = data.get('user_type')  # Provide a default value of 'user'
         verification_code = data.get('v_code', None)
         stored_code = cache.get(f'v_code_{email}')
 
-        # 如果是管理员类型，验证验证码
+        # If administrator type, verify the captcha
         if user_type == 'manager':
             if not verification_code or str(verification_code) != str(stored_code):
                 return Response({"error": "Invalid or incorrect CAPTCHA Code"}, status=status.HTTP_400_BAD_REQUEST)
-            cache.delete(f'v_code_{email}')  # 验证码正确后清除
+            cache.delete(f'v_code_{email}')  # Clear after correct CAPTCHA
 
-        # 使用序列化器进行数据验证和保存
+        # Data validation and saving using serialisers
         serializer = UserSerializer(data=data)
         if serializer.is_valid():
             user = serializer.save()
-            # 注册成功后，可以根据需要返回用户的一些信息，但不应该返回密码
+            # After successful registration, some information about the user can be returned as needed, but no password should be returned.
             return Response({"message": "注册成功。",
                              "user": {"id": user.id, "email": user.email, "username": user.username,
                                       "user_type": user.user_type}}, status=status.HTTP_201_CREATED)
         else:
-            # 如果数据验证失败，返回错误
+            # Returns an error if data validation fails
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -102,7 +102,7 @@ class LoginView(APIView):
         """
         email = request.data.get('email')
         password = request.data.get('password')
-        user_type = request.data.get('user_type')  # 默认为'user'
+        user_type = request.data.get('user_type')
         user = authenticate(request, username=email, password=password)
 
         if user is not None and user.user_type == user_type:

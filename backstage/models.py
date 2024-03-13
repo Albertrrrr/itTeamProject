@@ -8,7 +8,7 @@ from django.core.validators import MaxValueValidator, MinValueValidator
 # Create your models here.
 class productCategory(models.Model):
     name = models.CharField(max_length=255)
-    description = models.TextField()  # 使用 TextField 对应 VARCHAR(255) 是合适的，它没有长度限制
+    description = models.TextField()
 
     def __str__(self):
         return self.name
@@ -35,19 +35,19 @@ class ShoppingCartItem(models.Model):
     quantity = models.IntegerField(default=1)
 
     def clean(self):
-        # 获取产品的库存量
+        # Get the stock level of the product
         product_stock = self.productID.stock
-        # 验证数量是否超过库存量
+        # Verify that the quantity exceeds the stock level
         if self.quantity > product_stock:
             raise ValidationError(
                 {'quantity': f'Quantity cannot exceed the stock available. Stock available: {product_stock}.'})
-        # 验证数量是否低于最小值
+        # Verify that the quantity is below the minimum
         if self.quantity < 1:
             raise ValidationError({'quantity': 'Quantity cannot be less than 1.'})
 
     def save(self, *args, **kwargs):
         with transaction.atomic():
-            # 检查库存是否足够
+            # Checking the adequacy of stock
             if self.productID.stock < self.quantity:
                 raise ValidationError('The quantity exceeds the available stock.')
 
@@ -55,17 +55,17 @@ class ShoppingCartItem(models.Model):
                 pk=self.pk).first()
 
             if existing_item:
-                # 如果存在相同的项，更新该项的数量并减少库存
+                # If the same item exists, update the quantity of the item and reduce the inventory
                 new_quantity = existing_item.quantity + self.quantity
 
                 if new_quantity > self.productID.stock :
                     raise ValidationError('The quantity exceeds the available stock after update.')
                 ShoppingCartItem.objects.filter(pk=existing_item.pk).update(quantity=F('quantity') + self.quantity)
-                # 减少库存
-                # 重新从数据库加载productID以获取更新后的库存
+                # Reduction of stockpiles
+                # Reload the productID from the database to get the updated inventory
                 self.productID.refresh_from_db()
             else:
-                # 减少库存并保存新的购物车项
+                # Reduce inventory and save new shopping cart items
                 super().save(*args, **kwargs)
 
 
