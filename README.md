@@ -21,7 +21,7 @@ python manage.py migrate
 ```
 If you would like to change our design of database, you can overwrite our models and then run this command.
 ```
-python manage.py migrate 
+python manage.py migration
 ```
 We recommend the following software to manage the database：
 * Navicat
