@@ -21,7 +21,7 @@ python manage.py migrate
 ```
 If you would like to change our design of database, you can overwrite our models and then run this command.
 ```
-python manage.py migration
+python manage.py makemigrations
 ```
 We recommend the following software to manage the database：
 * Navicat
@@ -34,7 +34,7 @@ This project is based on Django REST Framework, Redis, and you should start the 
 * Your pip requirements are all installed.
 
 ```
-python manage.py runserve  
+python manage.py runserver  
 celery -A itTeamProject worker -l info
 ```
 
