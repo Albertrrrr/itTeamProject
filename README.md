@@ -1,7 +1,7 @@
 ## EasyCook Web application 
 UofG Internet Technology TeamProject
 ### Introduction
-This is the back-end implementation of the EasyCook website, which is a part of the University of Glasgow's MSC Internet Technology programme.
+This is the back-end implementation of the EasyCook website, which is a part of the University of Glasgow's MSC Internet Technology Course.
 ### Environment Preparation
 #### Install Anaconda Environment
 ```
